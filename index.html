@@ -1,0 +1,1390 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#9a5a26">
+  <title>إبرة في كوم قش | The Haystack Quest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --cream: #fff4dc;
+      --muted: rgba(255, 244, 220, .7);
+      --glass: rgba(48, 32, 23, .48);
+      --line: rgba(255, 244, 220, .16);
+      --gold: #ffc76b;
+      --copper: #e88d3c;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background:
+        radial-gradient(ellipse at 50% 22%, rgba(255, 217, 142, .72), transparent 45%),
+        radial-gradient(ellipse at 88% 10%, rgba(255, 169, 88, .43), transparent 42%),
+        linear-gradient(180deg, #b27642 0%, #855331 53%, #4d3228 100%);
+      color: var(--cream);
+      font-family: ui-rounded, "Segoe UI", Tahoma, Arial, sans-serif;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button { font: inherit; }
+    #scene { position: fixed; inset: 0; z-index: 0; touch-action: none; }
+    #scene canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    .sun-haze {
+      position: fixed; z-index: 1; inset: -15% -10% auto; height: 72%;
+      pointer-events: none; opacity: .43; mix-blend-mode: screen;
+      background:
+        linear-gradient(112deg, transparent 30%, rgba(255, 232, 178, .18) 36%, transparent 45%),
+        linear-gradient(128deg, transparent 52%, rgba(255, 227, 170, .16) 58%, transparent 67%),
+        linear-gradient(101deg, transparent 72%, rgba(255, 235, 190, .12) 78%, transparent 86%);
+      filter: blur(10px);
+    }
+    .grain {
+      position: fixed; inset: 0; z-index: 2; pointer-events: none; opacity: .12;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.28'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+    .glass {
+      background: linear-gradient(145deg, rgba(70, 45, 30, .7), rgba(41, 29, 25, .48));
+      border: 1px solid var(--line);
+      box-shadow: 0 16px 50px rgba(37, 22, 15, .2), inset 0 1px 0 rgba(255,255,255,.12);
+      -webkit-backdrop-filter: blur(18px) saturate(130%);
+      backdrop-filter: blur(18px) saturate(130%);
+    }
+    .topbar {
+      position: fixed; z-index: 5; top: max(18px, env(safe-area-inset-top)); left: 50%;
+      transform: translateX(-50%); width: min(1120px, calc(100vw - 36px));
+      display: flex; align-items: center; justify-content: space-between; gap: 18px;
+      padding: 13px 16px; border-radius: 22px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-mark {
+      width: 42px; height: 42px; flex: 0 0 auto; display: grid; place-items: center;
+      border-radius: 15px; color: #55351f; background: linear-gradient(145deg,#ffe2a4,#e99b48);
+      box-shadow: 0 7px 22px rgba(246, 165, 78, .25);
+    }
+    .brand h1 { margin: 0; font-size: clamp(15px, 2.3vw, 20px); line-height: 1.15; font-weight: 850; letter-spacing: -.02em; }
+    .brand p { margin: 4px 0 0; color: var(--muted); font-size: 11px; letter-spacing: .08em; direction: ltr; text-align: right; }
+    .hud-stats { display: flex; align-items: center; gap: 9px; }
+    .difficulty-button {
+      display:flex; align-items:center; gap:8px; padding:7px 11px; border-radius:14px;
+      color:#ffe9bf; background:rgba(244,174,84,.13); border:1px solid rgba(255,210,141,.22);
+      cursor:pointer; text-align:right; transition:.2s ease;
+    }
+    .difficulty-button:hover { background:rgba(244,174,84,.22); transform:translateY(-1px); }
+    .difficulty-button:disabled { opacity:.55; cursor:default; transform:none; }
+    .difficulty-button span { display:block; }
+    .difficulty-button small { display:block; color:rgba(255,244,220,.58); font-size:8px; line-height:1.1; }
+    .difficulty-button b { display:block; margin-top:2px; font-size:11px; line-height:1; white-space:nowrap; }
+    .stat {
+      min-width: 94px; padding: 8px 12px; border-radius: 15px;
+      background: rgba(255,255,255,.055); border: 1px solid rgba(255,255,255,.09);
+    }
+    .stat-label { display: block; color: rgba(255,244,220,.66); font-size: 10px; line-height: 1.2; }
+    .stat-value { display: block; margin-top: 3px; color: #fff6e2; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; direction: ltr; text-align: right; }
+    .stat-value.danger { color:#ff9a78; animation:timerPulse .7s ease-in-out infinite alternate; }
+    @keyframes timerPulse { to { text-shadow:0 0 12px rgba(255,105,76,.58); } }
+    .stat-value small { font-size: 10px; color: var(--muted); font-weight: 600; }
+    .sound-button, .share-button, .close-button {
+      border: 1px solid rgba(255,255,255,.13); color: var(--cream);
+      background: rgba(255,255,255,.07); cursor: pointer; transition: .2s ease;
+    }
+    .sound-button { height: 39px; width: 39px; display: grid; place-items: center; border-radius: 13px; }
+    .sound-button:hover, .share-button:hover, .close-button:hover { background: rgba(255,255,255,.15); transform: translateY(-1px); }
+    .hint {
+      position: fixed; z-index: 4; top: 106px; left: 50%; transform: translateX(-50%);
+      color: rgba(255, 246, 226, .87); font-size: 12px; text-align: center; white-space: nowrap;
+      text-shadow: 0 2px 12px rgba(48, 30, 18, .55); pointer-events: none;
+    }
+    .hint strong { color: #fff2cd; font-weight: 800; }
+    .tool-dock {
+      position: fixed; z-index: 6; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%;
+      transform: translateX(-50%); display: flex; align-items: stretch; gap: 8px;
+      width: max-content; max-width: calc(100vw - 24px); padding: 9px; border-radius: 23px;
+    }
+    .tool {
+      min-width: 105px; position: relative; display: flex; align-items: center; gap: 9px;
+      padding: 10px 13px; border-radius: 16px; border: 1px solid transparent;
+      background: transparent; color: rgba(255,244,220,.72); cursor: pointer;
+      transition: transform .2s ease, background .2s ease, color .2s ease, box-shadow .2s ease;
+    }
+    .tool:hover { transform: translateY(-3px); background: rgba(255,255,255,.08); color: #fff7e6; }
+    .tool.active {
+      color: #4c2d18; background: linear-gradient(145deg,#ffe0a1,#eaa052);
+      box-shadow: 0 7px 22px rgba(222, 140, 58, .3), inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .tool-icon { width: 35px; height: 35px; flex: 0 0 auto; border-radius: 12px; display: grid; place-items: center; background: rgba(255,255,255,.09); }
+    .tool.active .tool-icon { background: rgba(115,66,25,.12); }
+    .tool-copy { text-align: right; min-width: 0; }
+    .tool-copy b { display: block; font-size: 12px; line-height: 1.1; white-space: nowrap; }
+    .tool-copy span { display: block; margin-top: 4px; font-size: 9px; opacity: .72; white-space: nowrap; }
+    .tool[data-tool="fire"].active { background: linear-gradient(145deg,#ffcc82,#f07642); color: #502819; }
+    .tool[data-tool="magnet"].active { background: linear-gradient(145deg,#ffd5b3,#e97558); color: #4e251f; }
+    .tool[data-tool="blower"].active { background: linear-gradient(145deg,#d8e7c4,#8eae7b); color: #2c452d; }
+    .bottom-note {
+      position: fixed; z-index: 4; bottom: calc(max(20px, env(safe-area-inset-bottom)) + 82px); left: 50%;
+      transform: translateX(-50%); pointer-events: none; font-size: 10px; color: rgba(255,244,220,.65);
+      text-shadow: 0 1px 8px rgba(35,21,14,.7); white-space: nowrap;
+    }
+    .energy-panel {
+      position:fixed; z-index:5; bottom:calc(max(20px, env(safe-area-inset-bottom)) + 112px); left:max(20px, env(safe-area-inset-left));
+      width:184px; padding:11px 12px 10px; border-radius:15px; color:var(--cream);
+    }
+    .energy-head { display:flex; align-items:center; justify-content:space-between; font-size:10px; }
+    .energy-head span { color:rgba(255,244,220,.7); }
+    .energy-head b { font-size:11px; font-variant-numeric:tabular-nums; }
+    .energy-track { height:6px; margin-top:8px; overflow:hidden; border-radius:9px; background:rgba(15,10,8,.36); }
+    .energy-fill { height:100%; width:100%; border-radius:inherit; background:linear-gradient(90deg,#91b77e,#e8cf82); box-shadow:0 0 13px rgba(245,210,125,.35); transition:width .12s linear,background .2s ease; }
+    .energy-panel.warn .energy-fill { background:linear-gradient(90deg,#e8754f,#ffc46d); }
+    .needle-ping {
+      position: fixed; z-index: 4; width: 36px; height: 36px; margin: -18px; pointer-events: none;
+      border: 1px solid rgba(255,243,195,.8); border-radius: 50%; opacity: 0; transform: scale(.4);
+    }
+    .needle-ping.on { animation: ping .8s ease-out infinite; }
+    @keyframes ping { 0% { opacity: .9; transform: scale(.45); } 100% { opacity: 0; transform: scale(1.7); } }
+    .toast {
+      position: fixed; z-index: 20; top: 83px; left: 50%; transform: translate(-50%,-10px);
+      opacity: 0; pointer-events: none; padding: 10px 16px; border-radius: 14px;
+      color: #fff3d9; background: rgba(43,29,21,.82); border: 1px solid rgba(255,230,180,.18);
+      box-shadow: 0 12px 34px rgba(0,0,0,.24); font-size: 12px; transition: .25s ease;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%,0); }
+    .modal-backdrop {
+      position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; padding: 22px;
+      background: rgba(35,23,19,.42); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      opacity: 0; visibility: hidden; transition: .4s ease;
+    }
+    .modal-backdrop.open { opacity: 1; visibility: visible; }
+    .victory-card {
+      width: min(460px, 100%); position: relative; padding: 30px; text-align: center; border-radius: 28px;
+      overflow: hidden; transform: translateY(20px) scale(.97); transition: .45s cubic-bezier(.2,.8,.2,1);
+      background: linear-gradient(150deg, rgba(92,58,36,.94), rgba(46,32,28,.96));
+      border: 1px solid rgba(255,224,171,.3); box-shadow: 0 28px 90px rgba(18,11,8,.45);
+    }
+    .modal-backdrop.open .victory-card { transform: translateY(0) scale(1); }
+    .victory-card::before {
+      content:""; position:absolute; inset:-70% -20% auto; height:100%;
+      background: radial-gradient(ellipse,rgba(255,196,105,.27),transparent 65%); pointer-events:none;
+    }
+    .victory-emblem {
+      position: relative; width: 82px; height: 82px; margin: 2px auto 14px; display:grid; place-items:center;
+      border-radius: 28px; color:#593518; background: linear-gradient(145deg,#fff0bd,#eda347);
+      box-shadow: 0 12px 38px rgba(255,178,75,.24); transform: rotate(-7deg);
+    }
+    .victory-card h2 { position:relative; margin: 0; font-size: 27px; font-weight: 900; }
+    .victory-card .sub { position:relative; margin: 6px 0 21px; color:rgba(255,244,220,.68); font-size:13px; }
+    .rank {
+      position:relative; display:inline-flex; align-items:center; gap:7px; margin-bottom:20px; padding:8px 13px;
+      border-radius:999px; color:#ffe6ae; background:rgba(248,174,82,.12); border:1px solid rgba(255,204,123,.23);
+      font-size:12px; font-weight:800;
+    }
+    .result-grid { position:relative; display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:20px; }
+    .result-box { padding:12px; border-radius:15px; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.08); }
+    .result-box span { display:block; color:rgba(255,244,220,.6); font-size:10px; }
+    .result-box b { display:block; margin-top:5px; font-size:17px; font-variant-numeric:tabular-nums; }
+    .share-button { position:relative; width:100%; display:flex; align-items:center; justify-content:center; gap:9px; padding:13px 16px; border-radius:15px; font-weight:800; background:linear-gradient(145deg,#f4bd69,#d7823c); color:#492b18; border:0; }
+    .play-again { position:relative; margin-top:12px; border:0; color:rgba(255,244,220,.66); background:transparent; cursor:pointer; font-size:12px; padding:8px 12px; }
+    .play-again:hover { color:#fff3d4; }
+    #confetti { position:fixed; z-index:29; inset:0; overflow:hidden; pointer-events:none; }
+    .confetti-bit { position:absolute; top:-16px; width:8px; height:13px; opacity:.9; animation: fall var(--fall) cubic-bezier(.22,.63,.44,.99) forwards; }
+    @keyframes fall { to { transform:translate3d(var(--drift),110vh,0) rotate(var(--spin)); opacity:.1; } }
+    .intro-badge {
+      position:fixed; z-index:4; top:50%; left:50%; transform:translate(-50%,-50%);
+      padding:9px 14px; border-radius:999px; border:1px solid rgba(255,255,255,.15);
+      color:rgba(255,249,229,.88); background:rgba(50,31,21,.4); font-size:11px; letter-spacing:.02em;
+      box-shadow:0 8px 35px rgba(46,27,18,.12); pointer-events:none; animation:fadeHint 5.2s ease forwards;
+    }
+    @keyframes fadeHint { 0%,72% {opacity:1} 100% {opacity:0} }
+    @media (max-width: 720px) {
+      .topbar { top:max(10px,env(safe-area-inset-top)); width:calc(100vw - 20px); padding:10px 11px; border-radius:19px; gap:8px; }
+      .brand-mark { width:36px; height:36px; border-radius:13px; }
+      .brand { gap:8px; }
+      .brand h1 { font-size:14px; }
+      .brand p { font-size:9px; }
+      .hud-stats { gap:5px; }
+      .stat { min-width:66px; padding:7px 8px; border-radius:12px; }
+      .stat-label { font-size:8px; }
+      .stat-value { font-size:12px; }
+      .sound-button { width:34px; height:34px; border-radius:11px; }
+      .difficulty-button { gap:5px; padding:6px 7px; border-radius:12px; }
+      .difficulty-button small { display:none; }
+      .difficulty-button b { font-size:9px; }
+      .hint { top:88px; font-size:10px; }
+      .tool-dock { bottom:max(12px,env(safe-area-inset-bottom)); gap:3px; padding:6px; border-radius:19px; }
+      .tool { min-width:0; width:68px; display:flex; flex-direction:column; gap:5px; padding:7px 4px 8px; border-radius:14px; }
+      .tool-icon { width:31px; height:29px; }
+      .tool-copy { text-align:center; }
+      .tool-copy b { font-size:9px; }
+      .tool-copy span { display:none; }
+      .bottom-note { bottom:calc(max(12px,env(safe-area-inset-bottom)) + 70px); font-size:9px; }
+      .energy-panel { bottom:calc(max(12px,env(safe-area-inset-bottom)) + 92px); left:10px; width:132px; padding:8px 9px; }
+      .energy-head { font-size:8px; }
+      .energy-head b { font-size:9px; }
+      .toast { top:77px; width:max-content; max-width:calc(100vw - 30px); font-size:11px; }
+      .victory-card { padding:25px 20px; }
+    }
+    @media (max-width: 390px) {
+      .brand p { display:none; }
+      .stat { min-width:59px; }
+      .topbar { gap:4px; }
+      .hud-stats { gap:4px; }
+      .difficulty-button { padding:6px; }
+      .tool { width:61px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="scene" aria-label="مشهد ثلاثي الأبعاد لكومة قش"></div>
+  <div class="sun-haze"></div><div class="grain"></div>
+
+  <header class="topbar glass">
+    <div class="brand">
+      <div class="brand-mark"><i data-lucide="sparkles" width="21" height="21"></i></div>
+      <div>
+        <h1>إبرة في كوم قش</h1>
+        <p>THE HAYSTACK QUEST</p>
+      </div>
+    </div>
+    <button id="difficultyButton" class="difficulty-button" title="تغيير مستوى التحدّي قبل بدء البحث">
+      <i data-lucide="swords" width="17" height="17"></i>
+      <span><small>مستوى التحدّي</small><b id="difficultyName">صعب</b></span>
+    </button>
+    <div class="hud-stats">
+      <div class="stat"><span id="timeLabel" class="stat-label">الوقت</span><span id="timer" class="stat-value">00:00<small>.000</small></span></div>
+      <div class="stat"><span class="stat-label">القش المُبعثر</span><span id="displaced" class="stat-value">0<small>%</small></span></div>
+      <button id="soundToggle" class="sound-button" aria-label="تبديل الصوت" title="الصوت"><i data-lucide="volume-2" width="17" height="17"></i></button>
+    </div>
+  </header>
+  <div class="hint"><strong>اسحب فوق القش</strong> لتمهّد طريقك… واستمع إلى دقّات المعدن</div>
+  <div id="needlePing" class="needle-ping"></div>
+  <div id="bottomNote" class="bottom-note">استرح لتستعيد طاقة الحفر — الإشارات المعدنية قد تكون خدعة</div>
+  <div id="energyPanel" class="energy-panel glass">
+    <div class="energy-head"><span>طاقة الحفر</span><b id="energyValue">100%</b></div>
+    <div class="energy-track"><div id="energyFill" class="energy-fill"></div></div>
+  </div>
+  <nav class="tool-dock glass" aria-label="أدوات البحث">
+    <button class="tool active" data-tool="hand" aria-pressed="true">
+      <span class="tool-icon"><i data-lucide="hand" width="20" height="20"></i></span>
+      <span class="tool-copy"><b>اليد</b><span>حفر يدوي</span></span>
+    </button>
+    <button class="tool" data-tool="magnet" aria-pressed="false">
+      <span class="tool-icon"><i data-lucide="magnet" width="20" height="20"></i></span>
+      <span class="tool-copy"><b>المغناطيس</b><span>جذب المعادن</span></span>
+    </button>
+    <button class="tool" data-tool="blower" aria-pressed="false">
+      <span class="tool-icon"><i data-lucide="wind" width="20" height="20"></i></span>
+      <span class="tool-copy"><b>بلاور الهواء</b><span>دفعة قوية</span></span>
+    </button>
+    <button class="tool" data-tool="fire" aria-pressed="false">
+      <span class="tool-icon"><i data-lucide="flame" width="20" height="20"></i></span>
+      <span class="tool-copy"><b>شعلة النار</b><span>أزل القش المحروق</span></span>
+    </button>
+  </nav>
+  <div class="intro-badge font-semibold">المهمّة: اعثر على الإبرة اللامعة ✨</div>
+  <div id="toast" class="toast"></div>
+  <div id="confetti"></div>
+  <div id="victory" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+    <div class="victory-card glass">
+      <div class="victory-emblem"><i data-lucide="trophy" width="37" height="37"></i></div>
+      <h2 id="winTitle">وجدتها!</h2>
+      <p id="winSub" class="sub">الإبرة كانت تنتظرك بين القش ✨</p>
+      <div id="rank" class="rank"><i data-lucide="award" width="16" height="16"></i> صائد الإبر المحترف</div>
+      <div class="result-grid">
+        <div class="result-box"><span>الوقت المستغرق</span><b id="resultTime">00:00.000</b></div>
+        <div class="result-box"><span>لمسات / سحبات</span><b id="resultActions">0</b></div>
+        <div class="result-box"><span>عوائق أزلتها</span><b id="resultObstacles">0</b></div>
+      </div>
+      <button id="shareButton" class="share-button"><i data-lucide="swords" width="19" height="19"></i> تحدّ أصدقاءك برابط الكومة</button>
+      <button id="playAgain" class="play-again">العب تحدّياً جديداً</button>
+    </div>
+  </div>
+  <div id="failure" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="failureTitle">
+    <div class="victory-card glass">
+      <div class="victory-emblem"><i data-lucide="timer-off" width="37" height="37"></i></div>
+      <h2 id="failureTitle">انتهى الوقت!</h2>
+      <p class="sub">الإبرة ما زالت في الكومة. خذ نفساً، ثم جرّب خطة جديدة.</p>
+      <div class="rank"><i data-lucide="target" width="16" height="16"></i> <span id="failureDifficulty">وضع التحدّي</span></div>
+      <div class="result-grid">
+        <div class="result-box"><span>القش المُبعثر</span><b id="failureProgress">0%</b></div>
+        <div class="result-box"><span>اللمسات / السحبات</span><b id="failureActions">0 / 0</b></div>
+        <div class="result-box"><span>عوائق أزلتها</span><b id="failureObstacles">0</b></div>
+      </div>
+      <button id="retryChallenge" class="share-button"><i data-lucide="rotate-ccw" width="19" height="19"></i> أعد المحاولة بنفس الكومة</button>
+      <button id="lowerDifficulty" class="play-again">خفّف مستوى التحدّي</button>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+    const mount = document.getElementById('scene');
+    const timerNode = document.getElementById('timer');
+    const displacedNode = document.getElementById('displaced');
+    const toastNode = document.getElementById('toast');
+    const pingNode = document.getElementById('needlePing');
+    const victoryNode = document.getElementById('victory');
+    const confettiNode = document.getElementById('confetti');
+    const failureNode = document.getElementById('failure');
+    const energyPanel = document.getElementById('energyPanel');
+    const energyFill = document.getElementById('energyFill');
+    const energyValue = document.getElementById('energyValue');
+
+    const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const parsedSeed = parseInt(hashParams.get('seed') || '', 36);
+    const challengeSeed = Number.isFinite(parsedSeed) && parsedSeed > 0 ? parsedSeed >>> 0 : makeSeed();
+    function makeSeed() {
+      try { const v = new Uint32Array(1); crypto.getRandomValues(v); return v[0] || 1; }
+      catch (_) { return ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0) || 1; }
+    }
+    function randomFor(seed) {
+      let state = seed >>> 0;
+      return function () {
+        state += 0x6D2B79F5;
+        let t = state;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const rng = randomFor(challengeSeed);
+    const needleRng = randomFor((challengeSeed ^ 0xA53C9E1D) >>> 0);
+    const parsedNeedle = (hashParams.get('needle') || '').split(',').map(Number);
+    const needleFromHash = parsedNeedle.length === 3 && parsedNeedle.every(Number.isFinite);
+    let difficultyLevel = ['calm', 'hard', 'expert'].includes(hashParams.get('d')) ? hashParams.get('d') : 'hard';
+    const difficultyLabels = { calm: 'هادئ', hard: 'صعب', expert: 'خبير' };
+    const difficultyProfiles = {
+      calm: { timeLimit: 0, energyMax: 100, drains: { hand: 0, magnet: 0, blower: 0, fire: 0 }, recharge: 0, reveal: .34, clickRadius: 48, decoys: 0, obstacles: 2 },
+      hard: { timeLimit: 180000, energyMax: 100, drains: { hand: 4.5, magnet: 7, blower: 14, fire: 11 }, recharge: 19, reveal: .5, clickRadius: 38, decoys: 2, obstacles: 5 },
+      expert: { timeLimit: 100000, energyMax: 80, drains: { hand: 6.5, magnet: 10, blower: 19, fire: 15 }, recharge: 14, reveal: .65, clickRadius: 28, decoys: 4, obstacles: 8 }
+    };
+    let difficulty = difficultyProfiles[difficultyLevel];
+    const strawCount = 11000;
+    const hay = { cx: 0, cy: 2.8, cz: 0, rx: 5.45, ry: 2.78, rz: 3.65 };
+    let activeTool = 'hand';
+    let startedAt = 0;
+    let endedAt = 0;
+    let gestures = 0;
+    let swipes = 0;
+    let movedCount = 0;
+    let burnedCount = 0;
+    let obstaclesCleared = 0;
+    let needleRevealed = false;
+    let hasWon = false;
+    let hasFailed = false;
+    let energy = difficulty.energyMax;
+    let energyLocked = false;
+    let soundEnabled = true;
+    let pointerDown = false;
+    let gestureMoved = false;
+    let activePointer = null;
+    let lastHit = null;
+    let lastClient = { x: 0, y: 0 };
+    let lastRustleAt = 0;
+    let toastTimer = 0;
+    let currentNeedleDistance = Infinity;
+    let currentSignalDistance = Infinity;
+    let falseSignalIndices = [];
+    const foundFalseSignals = new Set();
+    let audioContext = null;
+    let masterGain = null;
+    let noiseBuffer = null;
+    let nextTickAt = 0;
+    let victoryAt = 0;
+    let victoryFrom = null;
+    let victoryTarget = null;
+    let magnetWinAt = 0;
+    let lastPhysicsTime = performance.now();
+    let frameCount = 0;
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x80573b, 0.013);
+    const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 120);
+    camera.position.set(9.4, 7.2, 14.6);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.65));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    mount.appendChild(renderer.domElement);
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 2.55, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enableRotate = false;
+    controls.enablePan = false;
+    controls.minDistance = 8;
+    controls.maxDistance = 25;
+
+    scene.add(new THREE.HemisphereLight(0xffe7bf, 0x553828, 1.7));
+    const sun = new THREE.DirectionalLight(0xffd38a, 3.05);
+    sun.position.set(-8, 13, 7);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.camera.left = -11; sun.shadow.camera.right = 11;
+    sun.shadow.camera.top = 11; sun.shadow.camera.bottom = -8;
+    sun.shadow.bias = -0.0004;
+    scene.add(sun);
+    const warmFill = new THREE.PointLight(0xffb766, 85, 24, 2);
+    warmFill.position.set(5, 5, -4);
+    scene.add(warmFill);
+    const softFront = new THREE.PointLight(0xffe1ad, 48, 22, 2);
+    softFront.position.set(1, 7, 10);
+    scene.add(softFront);
+
+    function makeWoodTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024; canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#745034'; ctx.fillRect(0, 0, 1024, 1024);
+      const plankH = 128;
+      for (let row = 0; row < 8; row++) {
+        const y = row * plankH;
+        const shade = 89 + Math.floor(rng() * 34);
+        ctx.fillStyle = 'rgb(' + (shade + 28) + ',' + shade + ',' + (shade - 18) + ')';
+        ctx.fillRect(0, y, 1024, plankH - 3);
+        ctx.fillStyle = 'rgba(37,21,13,.55)'; ctx.fillRect(0, y + plankH - 4, 1024, 5);
+        for (let k = 0; k < 18; k++) {
+          const gx = rng() * 1024, gy = y + rng() * plankH;
+          const length = 30 + rng() * 260;
+          ctx.beginPath(); ctx.moveTo(gx, gy); ctx.bezierCurveTo(gx + length * .25, gy - 5, gx + length * .65, gy + 5, gx + length, gy + (rng() - .5) * 7);
+          ctx.strokeStyle = 'rgba(38,21,14,' + (.08 + rng() * .12) + ')'; ctx.lineWidth = .7 + rng() * 1.7; ctx.stroke();
+        }
+        const seamX = (row % 2) * 310 + 310 + rng() * 90;
+        ctx.fillStyle = 'rgba(35,20,13,.4)'; ctx.fillRect(seamX, y, 3, plankH - 4);
+        for (const bx of [seamX + 14, seamX + 102]) {
+          ctx.beginPath(); ctx.arc(bx, y + 18, 3, 0, Math.PI * 2); ctx.fillStyle = 'rgba(33,20,15,.55)'; ctx.fill();
+          ctx.beginPath(); ctx.arc(bx - 1, y + 17, 1, 0, Math.PI * 2); ctx.fillStyle = 'rgba(222,174,111,.35)'; ctx.fill();
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(7, 7);
+      tex.encoding = THREE.sRGBEncoding;
+      tex.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+      return tex;
+    }
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshStandardMaterial({ map: makeWoodTexture(), roughness: .89, metalness: 0 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.035;
+    floor.receiveShadow = true;
+    scene.add(floor);
+    const barnRim = new THREE.Mesh(
+      new THREE.CylinderGeometry(5.42, 5.45, .18, 64, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0x70431f, roughness: .93, side: THREE.DoubleSide })
+    );
+    barnRim.position.set(0, .07, 0);
+    barnRim.scale.z = .68;
+    scene.add(barnRim);
+
+    const strawGeometry = new THREE.CylinderGeometry(.027, .043, 1, 5, 1, false);
+    strawGeometry.translate(0, .5, 0);
+    const strawMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .78, metalness: .015, vertexColors: true });
+    const strawMesh = new THREE.InstancedMesh(strawGeometry, strawMaterial, strawCount);
+    strawMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    strawMesh.castShadow = true;
+    strawMesh.receiveShadow = true;
+    strawMesh.frustumCulled = false;
+    scene.add(strawMesh);
+
+    const positions = new Float32Array(strawCount * 3);
+    const basePositions = new Float32Array(strawCount * 3);
+    const velocities = new Float32Array(strawCount * 3);
+    const quaternions = new Float32Array(strawCount * 4);
+    const scales = new Float32Array(strawCount * 3);
+    const moved = new Uint8Array(strawCount);
+    const burned = new Uint8Array(strawCount);
+    const grid = new Map();
+    const cellSize = 1.15;
+    const palette = [0xfbbf24, 0xf59e0b, 0xd97706, 0xe7a82d, 0xc98519, 0xffcf61, 0xe9b54e];
+    const up = new THREE.Vector3(0, 1, 0);
+    const direction = new THREE.Vector3();
+    const randomDirection = new THREE.Vector3();
+    const tmpPos = new THREE.Vector3();
+    const tmpScale = new THREE.Vector3();
+    const tmpQuat = new THREE.Quaternion();
+    const tmpMatrix = new THREE.Matrix4();
+    const tmpColor = new THREE.Color();
+    const darkStrawColor = new THREE.Color(0x49392d);
+    function cellKey(x, y, z) { return Math.floor(x / cellSize) + '|' + Math.floor(y / cellSize) + '|' + Math.floor(z / cellSize); }
+    function addToGrid(i, x, y, z) {
+      const key = cellKey(x, y, z);
+      let list = grid.get(key);
+      if (!list) { list = []; grid.set(key, list); }
+      list.push(i);
+    }
+    function getNearby(point, radius) {
+      const found = [];
+      const minX = Math.floor((point.x - radius) / cellSize), maxX = Math.floor((point.x + radius) / cellSize);
+      const minY = Math.floor((point.y - radius) / cellSize), maxY = Math.floor((point.y + radius) / cellSize);
+      const minZ = Math.floor((point.z - radius) / cellSize), maxZ = Math.floor((point.z + radius) / cellSize);
+      for (let x = minX; x <= maxX; x++) for (let y = minY; y <= maxY; y++) for (let z = minZ; z <= maxZ; z++) {
+        const list = grid.get(x + '|' + y + '|' + z);
+        if (list) for (let j = 0; j < list.length; j++) found.push(list[j]);
+      }
+      return found;
+    }
+    for (let i = 0; i < strawCount; i++) {
+      const u = rng() * 2 - 1;
+      const theta = rng() * Math.PI * 2;
+      const radial = Math.cbrt(rng()) * Math.sqrt(1 - u * u);
+      let x = hay.cx + hay.rx * radial * Math.cos(theta);
+      let y = hay.cy + hay.ry * u * Math.cbrt(rng());
+      let z = hay.cz + hay.rz * radial * Math.sin(theta);
+      y = Math.max(.1, y);
+      const p = i * 3;
+      positions[p] = basePositions[p] = x;
+      positions[p + 1] = basePositions[p + 1] = y;
+      positions[p + 2] = basePositions[p + 2] = z;
+      addToGrid(i, x, y, z);
+      direction.set(rng() - .5, rng() * .7 + .1, rng() - .5).normalize();
+      tmpQuat.setFromUnitVectors(up, direction);
+      const q = i * 4;
+      quaternions[q] = tmpQuat.x; quaternions[q + 1] = tmpQuat.y; quaternions[q + 2] = tmpQuat.z; quaternions[q + 3] = tmpQuat.w;
+      const sx = .72 + rng() * .65, sy = .58 + rng() * .82, sz = .72 + rng() * .65;
+      scales[p] = sx; scales[p + 1] = sy; scales[p + 2] = sz;
+      tmpPos.set(x, y, z);
+      tmpScale.set(sx, sy, sz);
+      tmpMatrix.compose(tmpPos, tmpQuat, tmpScale);
+      strawMesh.setMatrixAt(i, tmpMatrix);
+      strawMesh.setColorAt(i, tmpColor.setHex(palette[Math.floor(rng() * palette.length)]));
+    }
+    strawMesh.instanceMatrix.needsUpdate = true;
+    if (strawMesh.instanceColor) strawMesh.instanceColor.needsUpdate = true;
+
+    const debrisCount = 170;
+    const debrisRng = randomFor((challengeSeed ^ 0x41C64E6D) >>> 0);
+    const debrisPositions = new Float32Array(debrisCount * 3);
+    const debrisVelocities = new Float32Array(debrisCount * 3);
+    const debrisQuaternions = new Float32Array(debrisCount * 4);
+    const activeDebris = new Set();
+    const debrisGeometry = new THREE.CylinderGeometry(.012, .021, .16, 5);
+    const debrisMaterial = new THREE.MeshStandardMaterial({ color: 0xa0a9a8, metalness: .84, roughness: .3 });
+    const debrisMesh = new THREE.InstancedMesh(debrisGeometry, debrisMaterial, debrisCount);
+    debrisMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    debrisMesh.frustumCulled = false;
+    const debrisScale = new THREE.Vector3(1, 1, 1);
+    const debrisPos = new THREE.Vector3();
+    const debrisQuat = new THREE.Quaternion();
+    for (let i = 0; i < debrisCount; i++) {
+      const p = i * 3, q = i * 4;
+      let x = 0, y = 0, z = 0, attempt = 0;
+      do {
+        x = (debrisRng() - .5) * 8.4;
+        y = .15 + debrisRng() * 5.1;
+        z = (debrisRng() - .5) * 5.8;
+        attempt++;
+      } while (attempt < 30 && ((x / hay.rx) ** 2 + ((y - hay.cy) / hay.ry) ** 2 + (z / hay.rz) ** 2 > .82));
+      debrisPositions[p] = x; debrisPositions[p + 1] = y; debrisPositions[p + 2] = z;
+      direction.set(debrisRng() - .5, debrisRng() - .5, debrisRng() - .5).normalize();
+      debrisQuat.setFromUnitVectors(up, direction);
+      debrisQuaternions[q] = debrisQuat.x; debrisQuaternions[q + 1] = debrisQuat.y;
+      debrisQuaternions[q + 2] = debrisQuat.z; debrisQuaternions[q + 3] = debrisQuat.w;
+      debrisPos.set(x, y, z);
+      tmpMatrix.compose(debrisPos, debrisQuat, debrisScale);
+      debrisMesh.setMatrixAt(i, tmpMatrix);
+      debrisMesh.setColorAt(i, new THREE.Color().setHSL(.46 + debrisRng() * .08, .08 + debrisRng() * .1, .48 + debrisRng() * .18));
+    }
+    debrisMesh.instanceMatrix.needsUpdate = true;
+    if (debrisMesh.instanceColor) debrisMesh.instanceColor.needsUpdate = true;
+    scene.add(debrisMesh);
+
+    function targetForLevel(level) {
+      if (needleFromHash) return new THREE.Vector3(parsedNeedle[0], parsedNeedle[1], parsedNeedle[2]);
+      const targetRng = randomFor((challengeSeed ^ 0xA53C9E1D) >>> 0);
+      const x = (targetRng() * 2 - 1) * (level === 'expert' ? 1.85 : 2.35);
+      const y = 1.45 + targetRng() * 2.55;
+      const zRoll = targetRng();
+      const z = level === 'expert' ? -2.35 - zRoll * .75 :
+        level === 'hard' ? -1.45 - zRoll * 1.05 : (zRoll * 2 - 1) * 1.55;
+      return new THREE.Vector3(x, y, z);
+    }
+    const needlePosition = targetForLevel(difficultyLevel);
+    function chooseFalseSignals(count) {
+      const selector = randomFor((challengeSeed ^ 0x7F4A7C15) >>> 0);
+      const chosen = [], seen = new Set();
+      for (let attempt = 0; chosen.length < count && attempt < debrisCount * 5; attempt++) {
+        const index = Math.floor(selector() * debrisCount);
+        if (seen.has(index)) continue;
+        const p = index * 3;
+        const distance = Math.hypot(debrisPositions[p] - needlePosition.x, debrisPositions[p + 1] - needlePosition.y, debrisPositions[p + 2] - needlePosition.z);
+        if (distance < 1.8) continue;
+        seen.add(index);
+        chosen.push(index);
+      }
+      return chosen;
+    }
+    falseSignalIndices = chooseFalseSignals(difficulty.decoys);
+    const needleGroup = new THREE.Group();
+    needleGroup.position.copy(needlePosition);
+    needleGroup.rotation.set(.38 + needleRng() * .3, needleRng() * Math.PI * 2, -.55 + needleRng() * .4);
+    const silver = new THREE.MeshStandardMaterial({ color: 0xe3e9ed, metalness: .72, roughness: .17, emissive: 0x171b20, emissiveIntensity: .16 });
+    const needleShaft = new THREE.Mesh(new THREE.CylinderGeometry(.018, .018, .94, 12), silver);
+    needleShaft.position.y = -.02;
+    needleShaft.castShadow = true;
+    const needleTip = new THREE.Mesh(new THREE.ConeGeometry(.018, .17, 12), silver);
+    needleTip.position.y = -.57; needleTip.rotation.z = Math.PI;
+    const needleEye = new THREE.Mesh(new THREE.TorusGeometry(.055, .012, 8, 20), silver);
+    needleEye.position.y = .48;
+    needleGroup.add(needleShaft, needleTip, needleEye);
+    needleGroup.visible = false;
+    scene.add(needleGroup);
+
+    const obstacles = [];
+    const obstacleRng = randomFor((challengeSeed ^ 0x2C9277B5) >>> 0);
+    const twigGeometry = new THREE.CylinderGeometry(.018, .036, .72, 5);
+    const thornGeometry = new THREE.ConeGeometry(.033, .15, 5);
+    const twigMaterial = new THREE.MeshStandardMaterial({ color: 0x53351f, roughness: .92 });
+    const thornMaterial = new THREE.MeshStandardMaterial({ color: 0x34271d, roughness: .96 });
+    for (let obstacleIndex = 0; obstacleIndex < 8; obstacleIndex++) {
+      let x = 0, y = 0, z = 0, attempt = 0;
+      do {
+        x = (obstacleRng() - .5) * 7.2;
+        y = .5 + obstacleRng() * 4.7;
+        z = (obstacleRng() - .5) * 4.8;
+        attempt++;
+      } while (attempt < 70 && (
+        (x / hay.rx) ** 2 + ((y - hay.cy) / hay.ry) ** 2 + (z / hay.rz) ** 2 > .8 ||
+        Math.hypot(x - needlePosition.x, y - needlePosition.y, z - needlePosition.z) < 1.35
+      ));
+      const obstaclePosition = new THREE.Vector3(x, y, z);
+      const cluster = new THREE.Group();
+      cluster.position.copy(obstaclePosition);
+      cluster.rotation.set(obstacleRng() * Math.PI, obstacleRng() * Math.PI, obstacleRng() * Math.PI);
+      const branches = 5 + Math.floor(obstacleRng() * 3);
+      for (let branch = 0; branch < branches; branch++) {
+        const axis = new THREE.Vector3(obstacleRng() - .5, obstacleRng() * .8 + .15, obstacleRng() - .5).normalize();
+        const twig = new THREE.Mesh(twigGeometry, twigMaterial);
+        twig.position.copy(axis).multiplyScalar(.12 + obstacleRng() * .12);
+        twig.quaternion.setFromUnitVectors(up, axis);
+        twig.scale.y = .7 + obstacleRng() * .65;
+        twig.castShadow = true;
+        cluster.add(twig);
+        const thorn = new THREE.Mesh(thornGeometry, thornMaterial);
+        thorn.position.copy(axis).multiplyScalar(.48);
+        thorn.quaternion.setFromUnitVectors(up, axis);
+        cluster.add(thorn);
+      }
+      cluster.visible = obstacleIndex < difficulty.obstacles;
+      scene.add(cluster);
+      obstacles.push({ position: obstaclePosition, group: cluster, active: obstacleIndex < difficulty.obstacles, cleared: false, warningAt: 0 });
+    }
+
+    let needleNeighbors = [];
+    function refreshNeedleNeighbors() {
+      const candidates = getNearby(needlePosition, 1.05);
+      needleNeighbors = [];
+      for (let j = 0; j < candidates.length; j++) {
+        const i = candidates[j], p = i * 3;
+        const dx = positions[p] - needlePosition.x, dy = positions[p + 1] - needlePosition.y, dz = positions[p + 2] - needlePosition.z;
+        if (dx * dx + dy * dy + dz * dz < 1.05 * 1.05) needleNeighbors.push(i);
+      }
+    }
+    refreshNeedleNeighbors();
+
+    const haySurface = { center: new THREE.Vector3(hay.cx, hay.cy, hay.cz), scale: new THREE.Vector3(hay.rx, hay.ry, hay.rz) };
+    const raycaster = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    function findHayHit(clientX, clientY) {
+      ndc.x = (clientX / innerWidth) * 2 - 1;
+      ndc.y = -(clientY / innerHeight) * 2 + 1;
+      raycaster.setFromCamera(ndc, camera);
+      const origin = raycaster.ray.origin;
+      const d = raycaster.ray.direction;
+      const ox = (origin.x - haySurface.center.x) / haySurface.scale.x;
+      const oy = (origin.y - haySurface.center.y) / haySurface.scale.y;
+      const oz = (origin.z - haySurface.center.z) / haySurface.scale.z;
+      const dx = d.x / haySurface.scale.x, dy = d.y / haySurface.scale.y, dz = d.z / haySurface.scale.z;
+      const a = dx * dx + dy * dy + dz * dz;
+      const b = 2 * (ox * dx + oy * dy + oz * dz);
+      const c = ox * ox + oy * oy + oz * oz - 1;
+      const disc = b * b - 4 * a * c;
+      if (disc < 0) return null;
+      const root = Math.sqrt(disc);
+      let t = (-b - root) / (2 * a);
+      if (t < 0) t = (-b + root) / (2 * a);
+      if (t < 0) return null;
+      const entry = origin.clone().addScaledVector(d, t);
+      const point = entry.clone();
+      const samples = 24;
+      for (let s = 0; s < samples; s++) {
+        const candidate = entry.clone().addScaledVector(d, .18 + s * .28);
+        if (candidate.y < .12) continue;
+        const ids = getNearby(candidate, .52);
+        let density = 0;
+        for (let j = 0; j < ids.length; j++) {
+          const i = ids[j], p = i * 3;
+          const x = positions[p] - candidate.x, y = positions[p + 1] - candidate.y, z = positions[p + 2] - candidate.z;
+          if (x * x + y * y + z * z < .52 * .52 && !moved[i] && !burned[i]) density++;
+        }
+        if (density >= 2) { point.copy(candidate); break; }
+        if (s === samples - 1) point.copy(candidate);
+      }
+      return point;
+    }
+    function tryNeedleClick(clientX, clientY) {
+      if (!needleRevealed || !needleGroup.visible || hasWon) return false;
+      const projected = needlePosition.clone().project(camera);
+      const sx = (projected.x * .5 + .5) * innerWidth;
+      const sy = (-projected.y * .5 + .5) * innerHeight;
+      return Math.hypot(clientX - sx, clientY - sy) < difficulty.clickRadius;
+    }
+
+    const emberCount = 320;
+    const emberPositions = new Float32Array(emberCount * 3);
+    const emberVelocities = new Float32Array(emberCount * 3);
+    const emberLife = new Float32Array(emberCount);
+    const emberGeometry = new THREE.BufferGeometry();
+    emberGeometry.setAttribute('position', new THREE.BufferAttribute(emberPositions, 3).setUsage(THREE.DynamicDrawUsage));
+    const emberMaterial = new THREE.PointsMaterial({ color: 0xffa13c, size: .11, sizeAttenuation: true, transparent: true, opacity: .9, depthWrite: false, blending: THREE.AdditiveBlending });
+    const embers = new THREE.Points(emberGeometry, emberMaterial);
+    embers.frustumCulled = false;
+    scene.add(embers);
+    let emberCursor = 0;
+    function spawnEmbers(point, amount) {
+      for (let n = 0; n < amount; n++) {
+        const i = emberCursor++ % emberCount, p = i * 3;
+        emberPositions[p] = point.x + (rng() - .5) * .5;
+        emberPositions[p + 1] = point.y + rng() * .28;
+        emberPositions[p + 2] = point.z + (rng() - .5) * .5;
+        emberVelocities[p] = (rng() - .5) * 1.25;
+        emberVelocities[p + 1] = .6 + rng() * 1.5;
+        emberVelocities[p + 2] = (rng() - .5) * 1.25;
+        emberLife[i] = .55 + rng() * .9;
+      }
+      emberGeometry.attributes.position.needsUpdate = true;
+    }
+
+    const dustCount = 420;
+    const dustPositions = new Float32Array(dustCount * 3);
+    for (let i = 0; i < dustCount; i++) {
+      const p = i * 3;
+      dustPositions[p] = (rng() - .5) * 20;
+      dustPositions[p + 1] = .5 + rng() * 8;
+      dustPositions[p + 2] = (rng() - .5) * 15;
+    }
+    const dustGeometry = new THREE.BufferGeometry();
+    dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+    const dustMaterial = new THREE.PointsMaterial({ color: 0xffe1a3, size: .045, transparent: true, opacity: .55, depthWrite: false, sizeAttenuation: true });
+    const dust = new THREE.Points(dustGeometry, dustMaterial);
+    dust.frustumCulled = false;
+    scene.add(dust);
+
+    function toast(message) {
+      toastNode.textContent = message;
+      toastNode.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toastNode.classList.remove('show'); }, 2100);
+    }
+    function startClock() { if (!startedAt) startedAt = performance.now(); }
+    function formatTime(ms, tenths) {
+      const whole = Math.max(0, Math.floor(ms));
+      const minutes = Math.floor(whole / 60000);
+      const seconds = Math.floor((whole % 60000) / 1000);
+      const millis = whole % 1000;
+      return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0') + (tenths === false ? '.' + String(millis).padStart(3, '0') : '<small>.' + String(millis).padStart(3, '0') + '</small>');
+    }
+    function updateHud(now) {
+      if (startedAt && !hasWon) {
+        const elapsed = now - startedAt;
+        if (difficulty.timeLimit > 0) {
+          const remaining = Math.max(0, difficulty.timeLimit - elapsed);
+          timerNode.innerHTML = formatTime(remaining, true);
+          timerNode.classList.toggle('danger', remaining < 20000);
+          if (remaining <= 0) { showFailure(); return; }
+        } else {
+          timerNode.innerHTML = formatTime(elapsed, true);
+          timerNode.classList.remove('danger');
+        }
+      }
+      const percent = Math.min(100, (movedCount / strawCount) * 100);
+      displacedNode.innerHTML = percent.toFixed(percent < 10 ? 1 : 0) + '<small>%</small>';
+    }
+    function updateEnergy(dt) {
+      if (difficultyLevel === 'calm') return;
+      if (pointerDown && startedAt && !hasWon) energy -= difficulty.drains[activeTool] * dt;
+      else energy += difficulty.recharge * dt;
+      energy = Math.max(0, Math.min(difficulty.energyMax, energy));
+      const percent = Math.round((energy / difficulty.energyMax) * 100);
+      energyFill.style.width = percent + '%';
+      energyValue.textContent = percent + '%';
+      energyPanel.classList.toggle('warn', percent < 28);
+      if (energy > difficulty.energyMax * .22) energyLocked = false;
+      if (energy <= 0 && pointerDown && !hasWon && !energyLocked) {
+        energyLocked = true;
+        toast('أرهقت الأدوات — اترك القش للحظة لتستعيد طاقتك');
+      }
+    }
+    function beginAudio() {
+      if (!soundEnabled) return;
+      if (!audioContext) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) { soundEnabled = false; toast('الصوت غير مدعوم في هذا المتصفح'); return; }
+        audioContext = new Ctx();
+        masterGain = audioContext.createGain();
+        masterGain.gain.value = .62;
+        masterGain.connect(audioContext.destination);
+        const buffer = audioContext.createBuffer(1, audioContext.sampleRate, audioContext.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (0.65 + Math.random() * .35);
+        noiseBuffer = buffer;
+      }
+      if (audioContext.state === 'suspended') audioContext.resume();
+    }
+    function rustle(tool) {
+      if (!soundEnabled || !audioContext || !noiseBuffer) return;
+      const now = audioContext.currentTime;
+      const source = audioContext.createBufferSource();
+      source.buffer = noiseBuffer;
+      const filter = audioContext.createBiquadFilter();
+      filter.type = tool === 'fire' ? 'highpass' : 'bandpass';
+      filter.frequency.value = tool === 'blower' ? 680 : (tool === 'fire' ? 2100 : 1250 + Math.random() * 800);
+      filter.Q.value = tool === 'fire' ? .8 : 1.15;
+      const gain = audioContext.createGain();
+      gain.gain.setValueAtTime(.0001, now);
+      gain.gain.exponentialRampToValueAtTime(tool === 'blower' ? .065 : .042, now + .012);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + (tool === 'blower' ? .17 : .105));
+      source.connect(filter); filter.connect(gain); gain.connect(masterGain);
+      source.start(now); source.stop(now + .19);
+      if (Math.random() < .28) {
+        const click = audioContext.createOscillator();
+        const clickGain = audioContext.createGain();
+        click.type = 'triangle'; click.frequency.setValueAtTime(1200 + Math.random() * 1500, now);
+        clickGain.gain.setValueAtTime(.012, now);
+        clickGain.gain.exponentialRampToValueAtTime(.0001, now + .025);
+        click.connect(clickGain); clickGain.connect(masterGain); click.start(now); click.stop(now + .03);
+      }
+    }
+    function ticking(nowMs) {
+      if (!soundEnabled || !audioContext || !startedAt || hasWon || currentSignalDistance > 5.7) { pingNode.classList.remove('on'); return; }
+      const proximity = Math.max(0, Math.min(1, (5.7 - currentSignalDistance) / 5.3));
+      const interval = .82 - proximity * .7;
+      if (audioContext.currentTime >= nextTickAt) {
+        const now = audioContext.currentTime;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(420 + proximity * 980, now);
+        gain.gain.setValueAtTime(.0001, now);
+        gain.gain.exponentialRampToValueAtTime(.028 + proximity * .045, now + .004);
+        gain.gain.exponentialRampToValueAtTime(.0001, now + .043);
+        oscillator.connect(gain); gain.connect(masterGain);
+        oscillator.start(now); oscillator.stop(now + .05);
+        nextTickAt = now + interval;
+      }
+      pingNode.classList.add('on');
+      pingNode.style.left = lastClient.x + 'px';
+      pingNode.style.top = lastClient.y + 'px';
+    }
+    function victoryChime() {
+      if (!soundEnabled || !audioContext) return;
+      const now = audioContext.currentTime;
+      const delay = audioContext.createDelay(.8);
+      const feedback = audioContext.createGain(); feedback.gain.value = .26;
+      const wet = audioContext.createGain(); wet.gain.value = .36;
+      delay.delayTime.value = .22;
+      delay.connect(feedback); feedback.connect(delay); delay.connect(wet); wet.connect(masterGain);
+      const notes = [880, 1320, 1760, 2640];
+      for (let i = 0; i < notes.length; i++) {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = i === 0 ? 'sine' : 'triangle';
+        osc.frequency.value = notes[i];
+        const at = now + i * .065;
+        gain.gain.setValueAtTime(.0001, at);
+        gain.gain.exponentialRampToValueAtTime(i === 0 ? .13 : .038, at + .012);
+        gain.gain.exponentialRampToValueAtTime(.0001, at + 1.4);
+        osc.connect(gain); gain.connect(masterGain); gain.connect(delay);
+        osc.start(at); osc.stop(at + 1.45);
+      }
+      setTimeout(function () { try { delay.disconnect(); feedback.disconnect(); wet.disconnect(); } catch (_) {} }, 2200);
+    }
+
+    function markMoved(i) {
+      if (!moved[i]) { moved[i] = 1; movedCount++; }
+    }
+    function setBurnt(i) {
+      if (burned[i]) return;
+      burned[i] = 1; burnedCount++;
+      strawMesh.setColorAt(i, darkStrawColor);
+      if (strawMesh.instanceColor) strawMesh.instanceColor.needsUpdate = true;
+    }
+    function physicsKick(i, hit, strength, tool) {
+      const p = i * 3;
+      const x = positions[p], y = positions[p + 1], z = positions[p + 2];
+      direction.set(x - hit.x, y - hit.y, z - hit.z);
+      if (direction.lengthSq() < .0001) {
+        direction.set(x - hay.cx, y - hay.cy, z - hay.cz);
+        if (direction.lengthSq() < .0001) direction.set(rng() - .5, .4, rng() - .5);
+      }
+      direction.normalize();
+      if (tool === 'blower') direction.y += .48;
+      else if (tool === 'fire') direction.y += .22;
+      else if (tool === 'hand') direction.y += .12;
+      else direction.y += .28;
+      direction.normalize();
+      const power = strength * (tool === 'blower' ? 7.2 : tool === 'magnet' ? 3.5 : tool === 'fire' ? 4.4 : 3.4);
+      velocities[p] += direction.x * power + (tool === 'blower' ? .25 : 0);
+      velocities[p + 1] += direction.y * power + (tool === 'blower' ? .35 : 0);
+      velocities[p + 2] += direction.z * power;
+      randomDirection.set(rng() - .5, rng() * .6, rng() - .5).multiplyScalar(strength * .48);
+      velocities[p] += randomDirection.x;
+      velocities[p + 1] += randomDirection.y;
+      velocities[p + 2] += randomDirection.z;
+      markMoved(i);
+      if (tool === 'fire') setBurnt(i);
+      const q = i * 4;
+      tmpQuat.set(quaternions[q], quaternions[q + 1], quaternions[q + 2], quaternions[q + 3]);
+      tmpQuat.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(
+        (rng() - .5) * strength * .55,
+        (rng() - .5) * strength * .55,
+        (rng() - .5) * strength * .55
+      )));
+      quaternions[q] = tmpQuat.x; quaternions[q + 1] = tmpQuat.y; quaternions[q + 2] = tmpQuat.z; quaternions[q + 3] = tmpQuat.w;
+    }
+    function pushArea(point, tool) {
+      const config = {
+        hand: { radius: 1.25, power: 1, force: 1.0 },
+        magnet: { radius: 1.72, power: .94, force: 1.0 },
+        blower: { radius: 2.12, power: 1.28, force: 1.16 },
+        fire: { radius: 1.46, power: 1.12, force: .86 }
+      }[tool];
+      const ids = getNearby(point, config.radius);
+      let changed = 0;
+      for (let j = 0; j < ids.length; j++) {
+        const i = ids[j], p = i * 3;
+        const dx = positions[p] - point.x, dy = positions[p + 1] - point.y, dz = positions[p + 2] - point.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist > config.radius) continue;
+        const falloff = 1 - dist / config.radius;
+        if (falloff < .13) continue;
+        physicsKick(i, point, config.power * (.36 + falloff * .78), tool);
+        changed++;
+      }
+      if (tool === 'fire' && changed) spawnEmbers(point, Math.min(18, 5 + Math.ceil(changed * .16)));
+      if (tool === 'blower' && changed) spawnEmbers(point, 3);
+      if (tool === 'magnet') pullIronAndNeedle(point);
+      return changed;
+    }
+    function pullIronAndNeedle(point) {
+      for (let i = 0; i < debrisCount; i++) {
+        const p = i * 3;
+        const dx = point.x - debrisPositions[p], dy = point.y - debrisPositions[p + 1], dz = point.z - debrisPositions[p + 2];
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (distance > 3.15) continue;
+        const falloff = 1 - distance / 3.15;
+        debrisVelocities[p] += dx / (distance + .05) * falloff * 2.8;
+        debrisVelocities[p + 1] += (dy / (distance + .05) + .35) * falloff * 2.8;
+        debrisVelocities[p + 2] += dz / (distance + .05) * falloff * 2.8;
+        activeDebris.add(i);
+      }
+      const distance = point.distanceTo(needlePosition);
+      currentNeedleDistance = distance;
+      if (distance < 2.2 && !needleRevealed) {
+        for (let j = 0; j < needleNeighbors.length; j++) {
+          const i = needleNeighbors[j];
+          if (!moved[i]) {
+            markMoved(i);
+            physicsKick(i, needlePosition, .82, 'magnet');
+          }
+        }
+        needleRevealed = true;
+        needleGroup.visible = true;
+        toast('المغناطيس التقط أثراً معدنياً… الإبرة تقترب!');
+      } else if (distance < 1.1 && !hasWon) {
+        magnetWinAt = performance.now() + 550;
+      }
+    }
+    function checkNeedleReveal() {
+      if (needleRevealed || !needleNeighbors.length) return;
+      let cleared = 0;
+      for (let j = 0; j < needleNeighbors.length; j++) if (moved[needleNeighbors[j]] || burned[needleNeighbors[j]]) cleared++;
+      if (cleared / needleNeighbors.length >= difficulty.reveal) {
+        needleRevealed = true;
+        needleGroup.visible = true;
+        toast('وميض فضّي بين القش… لقد كشفت الإبرة!');
+      }
+    }
+    function handleObstacle(point, timestamp) {
+      for (let i = 0; i < obstacles.length; i++) {
+        const obstacle = obstacles[i];
+        if (!obstacle.active || obstacle.cleared || point.distanceTo(obstacle.position) > .82) continue;
+        if (activeTool === 'blower' || activeTool === 'fire') {
+          obstacle.cleared = true;
+          obstacle.group.visible = false;
+          obstaclesCleared++;
+          if (activeTool === 'fire') spawnEmbers(obstacle.position, 24);
+          energy = Math.min(difficulty.energyMax, energy + 12);
+          toast(activeTool === 'fire' ? 'أحرقت العقدة الشوكية — الممر أصبح آمناً' : 'أزاح الهواء العقدة الشوكية — الطريق مفتوح');
+          return false;
+        }
+        if (timestamp - obstacle.warningAt > 1200) {
+          obstacle.warningAt = timestamp;
+          if (difficultyLevel !== 'calm') energy = Math.max(0, energy - 9);
+          toast('عقدة شوكية تسدّ الطريق — استخدم البلاور أو الشعلة');
+        }
+        return true;
+      }
+      return false;
+    }
+    function processHit(point, timestamp) {
+      if (!point || hasWon) return;
+      if (difficultyLevel !== 'calm' && energy <= 0) {
+        if (!energyLocked) { energyLocked = true; toast('أرهقت الأدوات — اترك القش للحظة لتستعيد طاقتك'); }
+        return;
+      }
+      currentNeedleDistance = point.distanceTo(needlePosition);
+      currentSignalDistance = currentNeedleDistance;
+      let nearestFalseSignal = -1;
+      for (let j = 0; j < falseSignalIndices.length; j++) {
+        const index = falseSignalIndices[j], p = index * 3;
+        const distance = Math.hypot(point.x - debrisPositions[p], point.y - debrisPositions[p + 1], point.z - debrisPositions[p + 2]);
+        if (distance < currentSignalDistance) { currentSignalDistance = distance; nearestFalseSignal = index; }
+      }
+      if (nearestFalseSignal >= 0 && currentSignalDistance < .52 && !foundFalseSignals.has(nearestFalseSignal)) {
+        foundFalseSignals.add(nearestFalseSignal);
+        toast('إشارة كاذبة — وجدت خردة معدنية، وليست الإبرة');
+      }
+      if (handleObstacle(point, timestamp)) return;
+      pushArea(point, activeTool);
+      if (activeTool === 'magnet' && currentNeedleDistance < 2.2) {
+        needleGroup.visible = true;
+        needleRevealed = true;
+        if (currentNeedleDistance < 1.1) magnetWinAt = performance.now() + 520;
+      }
+      checkNeedleReveal();
+      if (timestamp - lastRustleAt > (activeTool === 'blower' ? 145 : 105)) {
+        rustle(activeTool);
+        lastRustleAt = timestamp;
+      }
+    }
+    function startGamePointer(event) {
+      if (event.button !== undefined && event.button !== 0) return;
+      event.preventDefault();
+      beginAudio();
+      if (tryNeedleClick(event.clientX, event.clientY)) { showVictory(); return; }
+      startClock();
+      gestures++;
+      pointerDown = true;
+      gestureMoved = false;
+      activePointer = event.pointerId;
+      lastClient = { x: event.clientX, y: event.clientY };
+      try { renderer.domElement.setPointerCapture(event.pointerId); } catch (_) {}
+      const hit = findHayHit(event.clientX, event.clientY);
+      lastHit = hit;
+      processHit(hit, performance.now());
+    }
+    function moveGamePointer(event) {
+      if (!pointerDown || event.pointerId !== activePointer || hasWon) return;
+      event.preventDefault();
+      const next = findHayHit(event.clientX, event.clientY);
+      if (!next) return;
+      const movedDistance = Math.hypot(event.clientX - lastClient.x, event.clientY - lastClient.y);
+      if (movedDistance > 3 && lastHit && !gestureMoved) { swipes++; gestureMoved = true; }
+      if (lastHit) {
+        const worldDistance = lastHit.distanceTo(next);
+        const steps = Math.min(8, Math.max(1, Math.ceil(worldDistance / .32)));
+        for (let i = 1; i <= steps; i++) {
+          const point = lastHit.clone().lerp(next, i / steps);
+          processHit(point, performance.now());
+        }
+      } else processHit(next, performance.now());
+      lastHit = next;
+      lastClient = { x: event.clientX, y: event.clientY };
+    }
+    function endGamePointer(event) {
+      if (event.pointerId !== undefined && activePointer !== null && event.pointerId !== activePointer) return;
+      pointerDown = false; activePointer = null; lastHit = null;
+    }
+    renderer.domElement.addEventListener('pointerdown', startGamePointer, { passive: false });
+    renderer.domElement.addEventListener('pointermove', moveGamePointer, { passive: false });
+    renderer.domElement.addEventListener('pointerup', endGamePointer);
+    renderer.domElement.addEventListener('pointercancel', endGamePointer);
+    renderer.domElement.addEventListener('lostpointercapture', endGamePointer);
+
+    document.querySelectorAll('.tool').forEach(function (button) {
+      button.addEventListener('click', function () {
+        activeTool = button.dataset.tool;
+        document.querySelectorAll('.tool').forEach(function (toolButton) {
+          const active = toolButton === button;
+          toolButton.classList.toggle('active', active);
+          toolButton.setAttribute('aria-pressed', active ? 'true' : 'false');
+        });
+        const names = { hand: 'اليد جاهزة للحفر', magnet: 'المغناطيس يبحث عن المعادن', blower: 'اندفاع الهواء جاهز', fire: 'الشعلة مشتعلة — استخدمها بحذر!' };
+        toast(names[activeTool]);
+      });
+    });
+    document.getElementById('soundToggle').addEventListener('click', function () {
+      soundEnabled = !soundEnabled;
+      this.innerHTML = soundEnabled ? '<i data-lucide="volume-2" width="17" height="17"></i>' : '<i data-lucide="volume-x" width="17" height="17"></i>';
+      if (window.lucide) lucide.createIcons();
+      if (soundEnabled) beginAudio();
+      else if (masterGain && audioContext) masterGain.gain.setTargetAtTime(0, audioContext.currentTime, .08);
+      if (soundEnabled && masterGain && audioContext) masterGain.gain.setTargetAtTime(.62, audioContext.currentTime, .08);
+    });
+    function rankName(ms) {
+      const percent = movedCount / strawCount;
+      if (difficultyLevel === 'expert') {
+        if (ms < 60000 && percent < .28) return 'أسطورة الحظيرة';
+        if (ms < 90000 && percent < .48) return 'خبير كشف الإبر';
+        return 'ناجٍ من وضع الخبير';
+      }
+      if (difficultyLevel === 'hard') {
+        if (ms < 90000 && percent < .38) return 'صائد الإبر المحترف';
+        if (ms < 150000) return 'منقّب ماهر';
+        return 'باحث صبور';
+      }
+      if (ms < 45000) return 'أسطورة الكومة الذهبية';
+      if (ms < 100000) return 'صائد الإبر المحترف';
+      return 'باحث صبور';
+    }
+    function burstConfetti() {
+      confettiNode.innerHTML = '';
+      const colors = ['#ffe08a', '#ff9c4a', '#f5d49a', '#b9cb8d', '#f17b51', '#fff5d5'];
+      for (let i = 0; i < 82; i++) {
+        const bit = document.createElement('span');
+        bit.className = 'confetti-bit';
+        bit.style.left = (Math.random() * 100) + '%';
+        bit.style.background = colors[Math.floor(Math.random() * colors.length)];
+        bit.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
+        bit.style.setProperty('--fall', (2.2 + Math.random() * 2.8) + 's');
+        bit.style.setProperty('--drift', ((Math.random() - .5) * 260) + 'px');
+        bit.style.setProperty('--spin', ((Math.random() - .5) * 1100) + 'deg');
+        bit.style.animationDelay = (Math.random() * .55) + 's';
+        confettiNode.appendChild(bit);
+      }
+      setTimeout(function () { confettiNode.innerHTML = ''; }, 6000);
+    }
+    function showVictory() {
+      if (hasWon) return;
+      hasWon = true;
+      endedAt = performance.now();
+      pointerDown = false;
+      victoryAt = endedAt;
+      victoryFrom = camera.position.clone();
+      victoryTarget = needlePosition.clone();
+      const duration = endedAt - (startedAt || endedAt);
+      timerNode.innerHTML = formatTime(duration, true);
+      document.getElementById('resultTime').textContent = formatTime(duration, false);
+      document.getElementById('resultActions').textContent = gestures + ' / ' + swipes;
+      document.getElementById('resultObstacles').textContent = obstaclesCleared + ' / ' + difficulty.obstacles;
+      document.getElementById('winSub').textContent = 'أنهيت وضع ' + difficultyLabels[difficultyLevel] + ' — الإبرة كانت تنتظرك بين القش ✨';
+      document.getElementById('rank').innerHTML = '<i data-lucide="award" width="16" height="16"></i> ' + rankName(duration);
+      if (window.lucide) lucide.createIcons();
+      victoryNode.classList.add('open');
+      burstConfetti();
+      victoryChime();
+    }
+    function makeChallengeUrl(level, includeNeedle, seedValue) {
+      const seed = seedValue || challengeSeed;
+      let hash = 'seed=' + seed.toString(36) + '&d=' + level;
+      if (includeNeedle) {
+        const needle = [needlePosition.x, needlePosition.y, needlePosition.z].map(function (n) { return n.toFixed(3); }).join(',');
+        hash += '&needle=' + encodeURIComponent(needle);
+      }
+      return location.href.split('#')[0] + '#' + hash;
+    }
+    function restartAtChallenge(url) {
+      const hashAt = url.indexOf('#');
+      if (hashAt >= 0) location.hash = url.slice(hashAt + 1);
+      setTimeout(function () { location.reload(); }, 30);
+    }
+    function showFailure() {
+      if (hasWon) return;
+      hasFailed = true;
+      hasWon = true;
+      pointerDown = false;
+      timerNode.innerHTML = formatTime(0, true);
+      timerNode.classList.add('danger');
+      document.getElementById('failureDifficulty').textContent = 'وضع ' + difficultyLabels[difficultyLevel];
+      document.getElementById('failureProgress').textContent = Math.round((movedCount / strawCount) * 100) + '%';
+      document.getElementById('failureActions').textContent = gestures + ' / ' + swipes;
+      document.getElementById('failureObstacles').textContent = obstaclesCleared + ' / ' + difficulty.obstacles;
+      failureNode.classList.add('open');
+      if (window.lucide) lucide.createIcons();
+    }
+    const difficultyButton = document.getElementById('difficultyButton');
+    function refreshDifficultyUI() {
+      document.getElementById('difficultyName').textContent = difficultyLabels[difficultyLevel];
+      difficultyButton.title = 'المستوى الحالي: ' + difficultyLabels[difficultyLevel] + ' — اضغط للتغيير قبل بدء البحث';
+      energyPanel.style.display = difficultyLevel === 'calm' ? 'none' : 'block';
+      document.getElementById('timeLabel').textContent = difficulty.timeLimit > 0 ? 'المتبقي' : 'الوقت';
+      document.getElementById('bottomNote').textContent = difficultyLevel === 'calm' ?
+        'استكشف براحتك — جرّب الأدوات الأربع للعثور على الإبرة' :
+        'استرح لتستعيد طاقة الحفر — الإشارات المعدنية قد تكون خدعة';
+      if (difficulty.timeLimit > 0) timerNode.innerHTML = formatTime(difficulty.timeLimit, true);
+      else timerNode.innerHTML = '00:00<small>.000</small>';
+      energy = difficulty.energyMax;
+      energyLocked = false;
+      energyFill.style.width = '100%';
+      energyValue.textContent = '100%';
+      energyPanel.classList.remove('warn');
+    }
+    function applyDifficulty(level) {
+      difficultyLevel = level;
+      difficulty = difficultyProfiles[level];
+      needlePosition.copy(targetForLevel(level));
+      needleGroup.position.copy(needlePosition);
+      needleGroup.visible = false;
+      needleRevealed = false;
+      currentNeedleDistance = Infinity;
+      currentSignalDistance = Infinity;
+      refreshNeedleNeighbors();
+      falseSignalIndices = chooseFalseSignals(difficulty.decoys);
+      foundFalseSignals.clear();
+      obstaclesCleared = 0;
+      obstacles.forEach(function (obstacle, index) {
+        obstacle.active = index < difficulty.obstacles;
+        obstacle.cleared = false;
+        obstacle.group.visible = obstacle.active;
+      });
+      refreshDifficultyUI();
+      try { history.replaceState(null, '', makeChallengeUrl(level, needleFromHash)); }
+      catch (_) { location.hash = makeChallengeUrl(level, needleFromHash).split('#')[1]; }
+    }
+    refreshDifficultyUI();
+    difficultyButton.addEventListener('click', function () {
+      if (startedAt) { toast('لا يمكن تبديل مستوى التحدّي بعد بدء الحفر'); return; }
+      const levels = ['calm', 'hard', 'expert'];
+      const next = levels[(levels.indexOf(difficultyLevel) + 1) % levels.length];
+      applyDifficulty(next);
+      const rules = {
+        calm: 'عقدتان شوكيتان — بلا مؤقّت',
+        hard: '٣ دقائق، ٥ عقد شوكية، وإشارتان زائفتان',
+        expert: '١:٤٠ دقيقة، ٨ عقد، و٤ إشارات زائفة'
+      };
+      toast(difficultyLabels[next] + ': ' + rules[next]);
+    });
+    document.getElementById('retryChallenge').addEventListener('click', function () {
+      restartAtChallenge(makeChallengeUrl(difficultyLevel, true));
+    });
+    document.getElementById('lowerDifficulty').addEventListener('click', function () {
+      const next = difficultyLevel === 'expert' ? 'hard' : 'calm';
+      restartAtChallenge(makeChallengeUrl(next, false));
+    });
+    document.getElementById('playAgain').addEventListener('click', function () {
+      restartAtChallenge(makeChallengeUrl(difficultyLevel, false, makeSeed()));
+    });
+    document.getElementById('shareButton').addEventListener('click', async function () {
+      const url = makeChallengeUrl(difficultyLevel, true);
+      try {
+        if (navigator.share) await navigator.share({ title: 'إبرة في كوم قش', text: 'هل تستطيع العثور على الإبرة في نفس الكومة؟', url: url });
+        else if (navigator.clipboard) { await navigator.clipboard.writeText(url); toast('تم نسخ رابط التحدّي!'); }
+        else { window.prompt('انسخ رابط التحدّي:', url); }
+      } catch (error) {
+        if (error && error.name !== 'AbortError') toast('تعذّر مشاركة الرابط، حاول مرة أخرى');
+      }
+    });
+    function resize() {
+      camera.aspect = innerWidth / innerHeight;
+      camera.fov = innerWidth < 720 ? 68 : 42;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 720 ? 1.35 : 1.65));
+      renderer.setSize(innerWidth, innerHeight);
+    }
+    addEventListener('resize', resize);
+    resize();
+
+    const tempPosition = new THREE.Vector3();
+    const tempQuaternion = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    function stepPhysics(dt) {
+      const remove = [];
+      activeIndices.forEach(function (i) {
+        const p = i * 3;
+        let vx = velocities[p], vy = velocities[p + 1], vz = velocities[p + 2];
+        vx *= Math.pow(.983, dt * 60);
+        vy -= (burned[i] ? 2.8 : 3.3) * dt;
+        vy *= Math.pow(.988, dt * 60);
+        vz *= Math.pow(.983, dt * 60);
+        let x = positions[p] + vx * dt, y = positions[p + 1] + vy * dt, z = positions[p + 2] + vz * dt;
+        if (y < .075) { y = .075; vy = Math.abs(vy) * .13; vx *= .7; vz *= .7; }
+        positions[p] = x; positions[p + 1] = y; positions[p + 2] = z;
+        velocities[p] = vx; velocities[p + 1] = vy; velocities[p + 2] = vz;
+        const q = i * 4;
+        tempPosition.set(x, y, z);
+        tempQuaternion.set(quaternions[q], quaternions[q + 1], quaternions[q + 2], quaternions[q + 3]);
+        tempScale.set(scales[p], scales[p + 1], scales[p + 2]);
+        tmpMatrix.compose(tempPosition, tempQuaternion, tempScale);
+        strawMesh.setMatrixAt(i, tmpMatrix);
+        if (Math.abs(vx) + Math.abs(vy) + Math.abs(vz) < .075) remove.push(i);
+      });
+      for (let i = 0; i < remove.length; i++) activeIndices.delete(remove[i]);
+      if (remove.length || activeIndices.size) strawMesh.instanceMatrix.needsUpdate = true;
+      const settledDebris = [];
+      activeDebris.forEach(function (i) {
+        const p = i * 3, q = i * 4;
+        let vx = debrisVelocities[p] * Math.pow(.965, dt * 60);
+        let vy = (debrisVelocities[p + 1] - 1.15 * dt) * Math.pow(.975, dt * 60);
+        let vz = debrisVelocities[p + 2] * Math.pow(.965, dt * 60);
+        debrisPositions[p] += vx * dt;
+        debrisPositions[p + 1] += vy * dt;
+        debrisPositions[p + 2] += vz * dt;
+        if (debrisPositions[p + 1] < .08) { debrisPositions[p + 1] = .08; vy = Math.abs(vy) * .14; vx *= .7; vz *= .7; }
+        debrisVelocities[p] = vx; debrisVelocities[p + 1] = vy; debrisVelocities[p + 2] = vz;
+        debrisQuat.set(debrisQuaternions[q], debrisQuaternions[q + 1], debrisQuaternions[q + 2], debrisQuaternions[q + 3]);
+        debrisPos.set(debrisPositions[p], debrisPositions[p + 1], debrisPositions[p + 2]);
+        tmpMatrix.compose(debrisPos, debrisQuat, debrisScale);
+        debrisMesh.setMatrixAt(i, tmpMatrix);
+        if (Math.abs(vx) + Math.abs(vy) + Math.abs(vz) < .045) settledDebris.push(i);
+      });
+      for (let i = 0; i < settledDebris.length; i++) activeDebris.delete(settledDebris[i]);
+      if (settledDebris.length || activeDebris.size) debrisMesh.instanceMatrix.needsUpdate = true;
+      for (let i = 0; i < emberCount; i++) {
+        if (emberLife[i] <= 0) continue;
+        const p = i * 3;
+        emberLife[i] -= dt;
+        emberPositions[p] += emberVelocities[p] * dt;
+        emberPositions[p + 1] += emberVelocities[p + 1] * dt;
+        emberPositions[p + 2] += emberVelocities[p + 2] * dt;
+        emberVelocities[p] *= .985; emberVelocities[p + 1] -= 1.8 * dt; emberVelocities[p + 2] *= .985;
+        if (emberLife[i] <= 0) emberPositions[p + 1] = -100;
+      }
+      emberGeometry.attributes.position.needsUpdate = true;
+    }
+    const activeIndices = new Set();
+    const _physicsKick = physicsKick;
+    physicsKick = function (i, hit, strength, tool) {
+      _physicsKick(i, hit, strength, tool);
+      activeIndices.add(i);
+    };
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = Math.min(.034, Math.max(.001, (now - lastPhysicsTime) / 1000));
+      lastPhysicsTime = now;
+      updateEnergy(dt);
+      stepPhysics(dt);
+      if (startedAt) updateHud(now);
+      ticking(now);
+      if (magnetWinAt && now >= magnetWinAt && !hasWon) { magnetWinAt = 0; showVictory(); }
+      if (hasWon && victoryFrom && now - victoryAt < 2000) {
+        const progress = Math.min(1, (now - victoryAt) / 1600);
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const offset = new THREE.Vector3(2.2, 1.45, 3.5);
+        const desired = victoryTarget.clone().add(offset);
+        camera.position.copy(victoryFrom).lerp(desired, ease);
+        controls.target.copy(new THREE.Vector3(0, 2.55, 0).lerp(victoryTarget, ease));
+      }
+      dust.rotation.y += dt * .012;
+      frameCount++;
+      if (frameCount % 7 === 0) checkNeedleReveal();
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    requestAnimationFrame(animate);
+    if (window.lucide) lucide.createIcons();
+    if (needleFromHash) toastNode.textContent = '';
+  })();
+  </script>
+</body>
+</html>
