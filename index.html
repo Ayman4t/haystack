@@ -336,6 +336,9 @@
     const hashParams = new URLSearchParams(location.hash.replace(/^#/, ''));
     const parsedSeed = parseInt(hashParams.get('seed') || '', 36);
     const challengeSeed = Number.isFinite(parsedSeed) && parsedSeed > 0 ? parsedSeed >>> 0 : makeSeed();
+    // Keep the hidden objective random for each fresh run. Shared links carry
+    // explicit needle coordinates, so friends still get the exact same target.
+    const goalSeed = makeSeed();
     function makeSeed() {
       try { const v = new Uint32Array(1); crypto.getRandomValues(v); return v[0] || 1; }
       catch (_) { return ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0) || 1; }
@@ -600,7 +603,7 @@
 
     function targetForLevel(level) {
       if (needleFromHash) return new THREE.Vector3(parsedNeedle[0], parsedNeedle[1], parsedNeedle[2]);
-      const targetRng = randomFor((challengeSeed ^ 0xA53C9E1D) >>> 0);
+      const targetRng = randomFor((goalSeed ^ 0xA53C9E1D) >>> 0);
       const x = (targetRng() * 2 - 1) * (level === 'expert' ? 1.85 : 2.35);
       const y = 1.45 + targetRng() * 2.55;
       const zRoll = targetRng();
@@ -1248,8 +1251,8 @@
         obstacle.group.visible = obstacle.active;
       });
       refreshDifficultyUI();
-      try { history.replaceState(null, '', makeChallengeUrl(level, needleFromHash)); }
-      catch (_) { location.hash = makeChallengeUrl(level, needleFromHash).split('#')[1]; }
+      try { history.replaceState(null, '', makeChallengeUrl(level, true)); }
+      catch (_) { location.hash = makeChallengeUrl(level, true).split('#')[1]; }
     }
     refreshDifficultyUI();
     difficultyButton.addEventListener('click', function () {
